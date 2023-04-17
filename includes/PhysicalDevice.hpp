@@ -20,6 +20,7 @@ namespace basicvk {
 
 		QueueFamilyIndices getQueueFamillyIndices() const;
 		VkPhysicalDevice getVkPhysicalDevice() const;
+		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 
 	private:
 		std::vector<VkPhysicalDevice> physicalDevices;

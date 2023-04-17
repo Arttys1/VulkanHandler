@@ -146,6 +146,15 @@ int main()
         fenceOptions.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         inFlightFences.push_back(basicvk::Fence(device, fenceOptions));
     }
+    basicvk::TextureOptions options{};
+    options.height = 100;
+    options.width = 100;
+    options.format = VK_FORMAT_R8G8B8A8_SRGB;
+    options.tiling = VK_IMAGE_TILING_OPTIMAL;
+    options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+    options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    basicvk::Texture texture(device, options);
+
     const std::vector<std::shared_ptr<basicvk::CommandBuffer>> &commandBuffers = commandPool.getCommandBuffers();
     const std::vector<std::shared_ptr<basicvk::DescriptorSet>> &descriptorSets = descriptorPool.getDescriptorSets();
 

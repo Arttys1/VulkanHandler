@@ -17,23 +17,15 @@ namespace basicvk {
 			throw std::runtime_error("failed to create the buffer");
 		}
 
-
+		std::shared_ptr<PhysicalDevice> physicalDevice = device_ptr->getPhysicalDevice();
 		VkPhysicalDeviceMemoryProperties memoryProperties;
-		vkGetPhysicalDeviceMemoryProperties(device_ptr->getPhysicalDevice()->getVkPhysicalDevice(), &memoryProperties);
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice->getVkPhysicalDevice(), &memoryProperties);
 
 		VkMemoryRequirements memoryRequirements;
 		vkGetBufferMemoryRequirements(device_ptr->getVkDevice(), buffer, &memoryRequirements);
 
-		uint32_t memoryTypeIndex = 0;
 		auto properties = (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
-			if ((memoryRequirements.memoryTypeBits & (1 << i)) 
-			&& (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				memoryTypeIndex = i;
-				break;
-			}
-		}
+		uint32_t memoryTypeIndex = physicalDevice->findMemoryType(memoryRequirements.memoryTypeBits, properties);
 
 		VkMemoryAllocateInfo memoryAllocateInfo{};
 		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -110,5 +102,81 @@ namespace basicvk {
 	VkDeviceMemory Buffer::getBufferMemory() const
 	{
 		return bufferMemory;
+	}
+
+
+	Texture::Texture(std::shared_ptr<Device> devicePtr, TextureOptions options)
+		: textureImage(VK_NULL_HANDLE), textureImageMemory(VK_NULL_HANDLE)
+		, width(options.width), height(options.height), device_ptr(devicePtr)
+	{
+		VkImageCreateInfo imageInfo{};
+		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageInfo.extent.width = width;
+		imageInfo.extent.height = height;
+		imageInfo.extent.depth = 1;
+		imageInfo.mipLevels = 1;
+		imageInfo.arrayLayers = 1;
+		imageInfo.format = options.format;
+		imageInfo.tiling = options.tiling;
+		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageInfo.usage = options.usage;
+		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		if (vkCreateImage(device_ptr->getVkDevice(), &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create image!");
+		}
+
+		VkMemoryRequirements memRequirements;
+		vkGetImageMemoryRequirements(device_ptr->getVkDevice(), textureImage, &memRequirements);
+
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = device_ptr->getPhysicalDevice()->findMemoryType(memRequirements.memoryTypeBits, options.properties);
+
+		if (vkAllocateMemory(device_ptr->getVkDevice(), &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate image memory!");
+		}
+
+		vkBindImageMemory(device_ptr->getVkDevice(), textureImage, textureImageMemory, 0);
+	}
+	Texture::~Texture()
+	{
+		if (textureImage != VK_NULL_HANDLE) {
+			vkDestroyImage(device_ptr->getVkDevice(), textureImage, nullptr);
+			textureImage = VK_NULL_HANDLE;
+		}
+		if (textureImageMemory != VK_NULL_HANDLE) {
+			vkFreeMemory(device_ptr->getVkDevice(), textureImageMemory, nullptr);
+			textureImageMemory = VK_NULL_HANDLE;
+		}
+	}
+	Texture::Texture(Texture& other)
+		: textureImage(other.textureImage), textureImageMemory(other.textureImageMemory)
+		, width(other.width), height(other.height), device_ptr(other.device_ptr)
+	{
+		other.textureImage = VK_NULL_HANDLE;
+		other.textureImageMemory = VK_NULL_HANDLE;
+		other.width = 0;
+		other.height = 0;
+	}
+	Texture Texture::operator=(Texture& other)
+	{
+		return Texture(other);
+	}
+	Texture::Texture(Texture&& other) noexcept
+		: textureImage(other.textureImage), textureImageMemory(other.textureImageMemory)
+		, width(other.width), height(other.height), device_ptr(other.device_ptr)
+	{
+		other.textureImage = VK_NULL_HANDLE;
+		other.textureImageMemory = VK_NULL_HANDLE;
+		other.width = 0;
+		other.height = 0;
+	}
+	Texture Texture::operator=(Texture&& other) noexcept
+	{
+		return Texture(other);
 	}
 }

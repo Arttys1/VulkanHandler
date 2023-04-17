@@ -32,6 +32,32 @@ namespace basicvk {
 		uint64_t bufferSize;
 		std::shared_ptr<Device> device_ptr;
 	};
+
+	struct TextureOptions {
+		uint32_t width; 
+		uint32_t height;
+		VkFormat format;
+		VkImageTiling tiling;
+		VkImageUsageFlags usage;
+		VkMemoryPropertyFlags properties;
+	};
+
+	class Texture {
+	public:
+		Texture(std::shared_ptr<Device> devicePtr, TextureOptions options);
+		~Texture();
+		Texture(Texture& texture);
+		Texture operator=(Texture& other);
+		Texture(Texture&& other) noexcept;
+		Texture operator=(Texture&& other) noexcept;
+
+	private:
+		VkImage textureImage;
+		VkDeviceMemory textureImageMemory;
+		uint32_t width;
+		uint32_t height;
+		std::shared_ptr<Device> device_ptr;
+	};
 }
 
 

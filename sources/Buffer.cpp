@@ -179,4 +179,20 @@ namespace basicvk {
 	{
 		return Texture(other);
 	}
+	VkImage Texture::getVkImage() const
+	{
+		return textureImage;
+	}
+	VkDeviceMemory Texture::getVkImageMemory() const
+	{
+		return textureImageMemory;
+	}
+	uint32_t Texture::getWidth() const
+	{
+		return width;
+	}
+	uint32_t Texture::getHeight() const
+	{
+		return height;
+	}
 }

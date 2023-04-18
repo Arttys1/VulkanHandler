@@ -146,14 +146,33 @@ int main()
         fenceOptions.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         inFlightFences.push_back(basicvk::Fence(device, fenceOptions));
     }
-    basicvk::TextureOptions options{};
-    options.height = 100;
-    options.width = 100;
-    options.format = VK_FORMAT_R8G8B8A8_SRGB;
-    options.tiling = VK_IMAGE_TILING_OPTIMAL;
-    options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-    options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    basicvk::Texture texture(device, options);
+
+    {
+        basicvk::BufferOptions imageBufferOption{};
+        imageBufferOption.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        imageBufferOption.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        basicvk::Buffer imageBuffer(device, imageBufferOption, 100);
+
+
+        basicvk::TextureOptions options{};
+        options.height = 100;
+        options.width = 100;
+        options.format = VK_FORMAT_R8G8B8A8_SRGB;
+        options.tiling = VK_IMAGE_TILING_OPTIMAL;
+        options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+        options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        basicvk::Texture texture(device, options);
+
+        auto commandBuffer = commandPool.allocateCommandBuffer();
+        commandBuffer->beginCommandBuffer({ VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT });
+        commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        //commandBuffer->CopyBufferToTexture(, texture);
+        commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        commandBuffer->endCommandBuffer();
+        commandBuffer->QueueSubmit({}, {}, nullptr);
+        graphicQueue.waitIdle();
+    }
 
     const std::vector<std::shared_ptr<basicvk::CommandBuffer>> &commandBuffers = commandPool.getCommandBuffers();
     const std::vector<std::shared_ptr<basicvk::DescriptorSet>> &descriptorSets = descriptorPool.getDescriptorSets();
@@ -199,7 +218,7 @@ int main()
         commandBuffer->endRenderPass();
         commandBuffer->endCommandBuffer();
 
-        commandBuffer->QueueSubmit(imageAvailableSemaphore, renderFinishedSemaphore, &inFlightFence);
+        commandBuffer->QueueSubmit({ &imageAvailableSemaphore }, { &renderFinishedSemaphore }, &inFlightFence);
 
         swapchain.presentSwapchain(presentQueue, &renderFinishedSemaphore, &imageIndex);
 

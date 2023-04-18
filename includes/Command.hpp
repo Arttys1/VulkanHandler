@@ -30,7 +30,9 @@ namespace basicvk {
 		void resetCommandBuffer() const;
 
 		void CopyBuffer(const Buffer& src, const Buffer& dst) const;
-		
+		void CopyBufferToTexture(const Buffer& src, const Texture& dest) const;
+		void transitionImageLayout(const Texture& texture, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) const;
+
 		void beginRenderPass(const GraphicPipeline& graphicPipeline, const Swapchain &swapchain, const Framebuffer& frameBuffer, uint32_t indexImage) const;
 		void endRenderPass() const;
 
@@ -40,7 +42,7 @@ namespace basicvk {
 		void bindGraphicDescriptorSet(const GraphicPipeline& graphicPipeline, std::shared_ptr<DescriptorSet> descriptorSet) const;
 		void draw(const Swapchain& swapchain, uint32_t vertexCount, uint32_t instanceCount) const;
 		void drawIndexed(const Swapchain& swapchain, uint32_t indexCount);
-		void QueueSubmit(const Semaphore& waitSemaphore, const Semaphore& signalSemaphore, const Fence* pFence) const;
+		void QueueSubmit(const std::vector<const Semaphore*> &waitSemaphores, const std::vector<const Semaphore*> &signalSemaphores, const Fence* pFence) const;
 
 	private:
 		VkCommandBuffer commandBuffer;

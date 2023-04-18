@@ -51,6 +51,11 @@ namespace basicvk {
 		Texture(Texture&& other) noexcept;
 		Texture operator=(Texture&& other) noexcept;
 
+		VkImage getVkImage() const;
+		VkDeviceMemory getVkImageMemory() const;
+		uint32_t getWidth() const;
+		uint32_t getHeight() const;
+
 	private:
 		VkImage textureImage;
 		VkDeviceMemory textureImageMemory;

@@ -103,6 +103,78 @@ namespace basicvk {
 		
 		vkCmdCopyBuffer(commandBuffer, src.getVkBuffer(), dst.getVkBuffer(), 1, &bufferCopyInfo);
 	}
+	void CommandBuffer::CopyBufferToTexture(const Buffer& src, const Texture& dest) const
+	{
+		VkBufferImageCopy region{};
+		region.bufferOffset = 0;
+		region.bufferRowLength = 0;
+		region.bufferImageHeight = 0;
+
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = 1;
+
+		region.imageOffset = { 0, 0, 0 };
+		region.imageExtent = {
+			dest.getWidth(),
+			dest.getHeight(),
+			1
+		};
+
+		vkCmdCopyBufferToImage(commandBuffer,
+			src.getVkBuffer(),
+			dest.getVkImage(),
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&region);
+	}
+	void CommandBuffer::transitionImageLayout(const Texture& texture, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) const
+	{
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = oldLayout;
+		barrier.newLayout = newLayout;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = texture.getVkImage();
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+		
+		VkPipelineStageFlags sourceStage;
+		VkPipelineStageFlags destinationStage;
+
+		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
+		else {
+			throw std::invalid_argument("unsupported layout transition!");
+		}
+
+		vkCmdPipelineBarrier(
+			commandBuffer,
+			sourceStage,
+			destinationStage,
+			0,
+			0, nullptr,
+			0, nullptr,
+			1, &barrier
+		);
+	}
 	void CommandBuffer::beginRenderPass(const GraphicPipeline &graphicPipeline, const Swapchain& swapchain, const Framebuffer &frameBuffer, uint32_t indexImage) const
 	{
 		VkRenderPassBeginInfo renderPassBeginInfo{};
@@ -178,21 +250,29 @@ namespace basicvk {
 
 		vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
 	}
-	void CommandBuffer::QueueSubmit(const Semaphore &waitSemaphore, const Semaphore& signalSemaphore, const Fence *pFence) const
+	void CommandBuffer::QueueSubmit(const std::vector<const Semaphore*>& waitSemaphores, const std::vector<const Semaphore*>& signalSemaphores, const Fence *pFence) const
 	{
-		//todo : allow many semaphore to be submited at the same time
-		VkSemaphore waitSemaphores[] = { waitSemaphore.getVkSemaphore() };
-		VkSemaphore signalSemaphores[] = { signalSemaphore.getVkSemaphore() };
+		auto getVkSemaphores = [](const std::vector<const Semaphore*>& semaphores) -> std::vector<VkSemaphore> {
+			std::vector<VkSemaphore> vkSemaphores(semaphores.size());
+			for (size_t i = 0; i < semaphores.size(); i++)
+			{
+				vkSemaphores[i] = semaphores[i]->getVkSemaphore();
+			}
+			return vkSemaphores;
+		};
+
+		std::vector<VkSemaphore> waitVkSemaphores = getVkSemaphores(waitSemaphores);
+		std::vector<VkSemaphore> signalVkSemaphores = getVkSemaphores(signalSemaphores);
 		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitVkSemaphores.size());
+		submitInfo.pWaitSemaphores = waitVkSemaphores.data();
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &commandBuffer;
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = signalSemaphores;
+		submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalVkSemaphores.size());
+		submitInfo.pSignalSemaphores = signalVkSemaphores.data();
 
 		VkFence fence = pFence ? pFence->getVkFence() : VK_NULL_HANDLE;
 		if (vkQueueSubmit(queue.getVkQueue(), 1, &submitInfo, fence) != VK_SUCCESS) {

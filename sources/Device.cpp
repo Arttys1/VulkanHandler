@@ -120,6 +120,10 @@ namespace basicvk {
 		: queue(queue), indice(indice)
 	{
 	}
+	void Queue::waitIdle() const
+	{
+		vkQueueWaitIdle(queue);
+	}
 	VkQueue Queue::getVkQueue() const
 	{
 		return queue;

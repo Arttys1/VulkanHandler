@@ -16,6 +16,8 @@ namespace basicvk {
 		Queue(VkQueue queue, uint32_t indice);
 		Queue(Queue& queue) = default;
 
+		void waitIdle() const;
+
 		VkQueue getVkQueue() const;
 		uint32_t getQueueFamilyIndex() const;
 

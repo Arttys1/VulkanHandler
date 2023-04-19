@@ -16,6 +16,10 @@
 #include <glm/glm.hpp>
 #include <glm/fwd.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third_party/stb_image.h"
+
+const int MAX_FRAMES_IN_FLIGHT = 2;
 
 int main()
 {
@@ -40,6 +44,7 @@ int main()
     struct Vertex {
         glm::vec2 pos;
         glm::vec3 color;
+        glm::vec2 texCoord;
     };
 
     struct UniformBufferObject {
@@ -49,10 +54,10 @@ int main()
     };
 
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
     };
 
     const std::vector<uint16_t> indices = {
@@ -82,7 +87,7 @@ int main()
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     graphicPipelineInfo.vertexInputBindingDescription = &bindingDescription;
 
-    std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+    std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -91,25 +96,41 @@ int main()
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[1].offset = offsetof(Vertex, color);
+    attributeDescriptions[2].binding = 0;
+    attributeDescriptions[2].location = 2;
+    attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
     graphicPipelineInfo.vertexInputAttributeDescriptions = attributeDescriptions;
 
     //descriptor
-    basicvk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
-    descriptorSetLayoutCreateInfo.binding = 0;
-    descriptorSetLayoutCreateInfo.descriptorCount = 1;
-    descriptorSetLayoutCreateInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptorSetLayoutCreateInfo.shaderStage = VK_SHADER_STAGE_VERTEX_BIT;
-    basicvk::DescriptorSetLayout descriptorSetLayout(device, descriptorSetLayoutCreateInfo);
+    basicvk::DescriptorSetLayoutCreateInfo uboLayoutCreateInfo{};
+    uboLayoutCreateInfo.binding = 0;
+    uboLayoutCreateInfo.descriptorCount = 1;
+    uboLayoutCreateInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutCreateInfo.shaderStage = VK_SHADER_STAGE_VERTEX_BIT;
+
+    basicvk::DescriptorSetLayoutCreateInfo imageSamplerLayoutCreateInfo{};
+    imageSamplerLayoutCreateInfo.binding = 1;
+    imageSamplerLayoutCreateInfo.descriptorCount = 1;
+    imageSamplerLayoutCreateInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    imageSamplerLayoutCreateInfo.shaderStage = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    basicvk::DescriptorSetLayout descriptorSetLayout(device, { uboLayoutCreateInfo, imageSamplerLayoutCreateInfo });
 
     graphicPipelineInfo.descriptorSetLayout = &descriptorSetLayout;
     basicvk::GraphicPipeline graphicPipeline(device, swapchain, shader, graphicPipelineInfo);
     basicvk::Framebuffer framebuffer(device, swapchain, graphicPipeline);
 
+    std::vector<VkDescriptorPoolSize> poolSizes(2);
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
     basicvk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{};
-    descriptorPoolCreateInfo.descriptorCount = 3;
-    descriptorPoolCreateInfo.maxSets = 3;
-    descriptorPoolCreateInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorPoolCreateInfo.poolSizes = poolSizes;
+    descriptorPoolCreateInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
     basicvk::DescriptorPool descriptorPool(device, descriptorPoolCreateInfo);
 
 
@@ -128,7 +149,6 @@ int main()
     ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
 
-    const int MAX_FRAMES_IN_FLIGHT = 2;
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         basicvk::BufferOptions uniformBufferOption{};
@@ -138,7 +158,7 @@ int main()
         uniformBuffer.mapMemory((void*) &ubo, sizeof(UniformBufferObject));
         uniformBuffers.push_back(basicvk::Buffer(uniformBuffer));
 
-        descriptorPool.allocateDescritorSet(descriptorSetLayout);
+        descriptorPool.allocateDescriptorSet(descriptorSetLayout);
         commandPool.allocateCommandBuffer();
         imageAvailableSemaphores.push_back(basicvk::Semaphore(device));
         renderFinishedSemaphores.push_back(basicvk::Semaphore(device));
@@ -147,43 +167,65 @@ int main()
         inFlightFences.push_back(basicvk::Fence(device, fenceOptions));
     }
 
-    {
-        basicvk::BufferOptions imageBufferOption{};
-        imageBufferOption.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        imageBufferOption.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        basicvk::Buffer imageBuffer(device, imageBufferOption, 100);
+    /// Creation de la texture
 
 
-        basicvk::TextureOptions options{};
-        options.height = 100;
-        options.width = 100;
-        options.format = VK_FORMAT_R8G8B8A8_SRGB;
-        options.tiling = VK_IMAGE_TILING_OPTIMAL;
-        options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-        options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-        basicvk::Texture texture(device, options);
+    int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load("C:/Users/Arnaud/Downloads/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    VkDeviceSize imageSize = texWidth * texHeight * 4;
 
-        auto commandBuffer = commandPool.allocateCommandBuffer();
-        commandBuffer->beginCommandBuffer({ VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT });
-        commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        //commandBuffer->CopyBufferToTexture(, texture);
-        commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-        commandBuffer->endCommandBuffer();
-        commandBuffer->QueueSubmit({}, {}, nullptr);
-        graphicQueue.waitIdle();
+    if (!pixels) {
+        throw std::runtime_error("failed to load texture image!");
     }
+
+    basicvk::BufferOptions imageBufferOption{};
+    imageBufferOption.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    imageBufferOption.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    basicvk::Buffer imageBuffer(device, imageBufferOption, imageSize);
+    imageBuffer.mapMemory(pixels, imageSize);
+
+    basicvk::TextureOptions options{};
+    options.height = texHeight;
+    options.width = texWidth;
+    options.format = VK_FORMAT_R8G8B8A8_SRGB;
+    options.tiling = VK_IMAGE_TILING_OPTIMAL;
+    options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+    options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    basicvk::Texture texture(device, options);
+
+    auto commandBuffer = commandPool.allocateCommandBuffer();
+    commandBuffer->beginCommandBuffer({ VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT });
+    commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    commandBuffer->CopyBufferToTexture(imageBuffer, texture);
+    commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    commandBuffer->endCommandBuffer();
+    commandBuffer->QueueSubmit({}, {}, nullptr);
+    graphicQueue.waitIdle();
+
 
     const std::vector<std::shared_ptr<basicvk::CommandBuffer>> &commandBuffers = commandPool.getCommandBuffers();
     const std::vector<std::shared_ptr<basicvk::DescriptorSet>> &descriptorSets = descriptorPool.getDescriptorSets();
 
     for (size_t i = 0; i < descriptorSets.size(); i++)
     {
+        basicvk::BufferUpdateInfo bufferUpdateInfo{};
+        bufferUpdateInfo.arrayElement = 0;
+        bufferUpdateInfo.binding = 0;
+        bufferUpdateInfo.buffer = uniformBuffers[i].getVkBuffer();
+        bufferUpdateInfo.range = sizeof(UniformBufferObject);
+        bufferUpdateInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+        basicvk::TextureUpdateInfo textureToUpdate{};
+        textureToUpdate.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        textureToUpdate.imageView = texture.getVkImageView();
+        textureToUpdate.sampler = texture.getVkSampler();
+        textureToUpdate.binding = 1;
+        textureToUpdate.arrayElement = 0;
+
         basicvk::DescriptorSetUpdateInfo descriptorSetUpdateInfo{};
-        descriptorSetUpdateInfo.arrayElement = 0;
-        descriptorSetUpdateInfo.binding = 0;
-        descriptorSetUpdateInfo.buffer = uniformBuffers[i].getVkBuffer();
-        descriptorSetUpdateInfo.range = sizeof(UniformBufferObject);
+        descriptorSetUpdateInfo.bufferInfos = { bufferUpdateInfo };
+        descriptorSetUpdateInfo.textureInfos = { textureToUpdate };
 
         descriptorSets[i]->UpdateDescriptorSet(descriptorSetUpdateInfo);
     }

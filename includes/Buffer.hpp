@@ -53,12 +53,16 @@ namespace basicvk {
 
 		VkImage getVkImage() const;
 		VkDeviceMemory getVkImageMemory() const;
+		VkImageView getVkImageView() const;
+		VkSampler getVkSampler() const;
 		uint32_t getWidth() const;
 		uint32_t getHeight() const;
 
 	private:
-		VkImage textureImage;
-		VkDeviceMemory textureImageMemory;
+		VkImage image;
+		VkDeviceMemory imageMemory;
+		VkImageView imageView;
+		VkSampler sampler;
 		uint32_t width;
 		uint32_t height;
 		std::shared_ptr<Device> device_ptr;

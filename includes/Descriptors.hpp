@@ -11,16 +11,13 @@ namespace basicvk {
 	class DescriptorPool;
 
 	struct DescriptorPoolCreateInfo {
-		VkDescriptorPoolCreateFlags flags;
-		uint32_t                    maxSets;
-		VkDescriptorType			type;
-		uint32_t					descriptorCount;
+		std::vector<VkDescriptorPoolSize> poolSizes;
+		uint32_t maxSets;
 	};
 
 	struct DescriptorSetAllocateInfo {
 		VkDescriptorPool descriptorPool;
 		VkDescriptorSetLayout descriptorSetLayout;
-		VkDescriptorType descriptorType;
 	};
 
 	struct DescriptorSetLayoutCreateInfo {
@@ -28,14 +25,27 @@ namespace basicvk {
 		VkDescriptorType descriptorType;
 		VkShaderStageFlags shaderStage;
 		uint32_t descriptorCount;
-		VkDescriptorSetLayoutCreateFlags flags;
 	};
 
-	struct DescriptorSetUpdateInfo {
+	struct BufferUpdateInfo {
 		VkBuffer buffer;
 		uint64_t range;
 		uint32_t binding;
 		uint32_t arrayElement;
+		VkDescriptorType type;
+	};
+
+	struct TextureUpdateInfo {
+		VkImageLayout imageLayout;
+		VkImageView imageView;
+		VkSampler sampler;
+		uint32_t binding;
+		uint32_t arrayElement;
+	};
+
+	struct DescriptorSetUpdateInfo {
+		std::vector<BufferUpdateInfo> bufferInfos;
+		std::vector<TextureUpdateInfo> textureInfos;
 	};
 
 	class DescriptorPool {
@@ -47,13 +57,12 @@ namespace basicvk {
 		DescriptorPool(DescriptorPool&&) = delete;
 		DescriptorPool operator=(DescriptorPool&&) = delete;
 
-		std::shared_ptr<DescriptorSet> allocateDescritorSet(const DescriptorSetLayout &descriptorSetLayout);
+		std::shared_ptr<DescriptorSet> allocateDescriptorSet(const DescriptorSetLayout &descriptorSetLayout);
 		const std::vector<std::shared_ptr<DescriptorSet>> & getDescriptorSets() const;
 		std::vector<VkDescriptorSet> getVkDescriptorSets() const;
 
 	private:
 		VkDescriptorPool descriptorPool;
-		VkDescriptorType descriptorType;
 		std::shared_ptr<Device> device_ptr;
 		std::vector<std::shared_ptr<DescriptorSet>> descriptorSets;
 	};
@@ -71,13 +80,12 @@ namespace basicvk {
 
 	private:
 		VkDescriptorSet descriptorSet;
-		VkDescriptorType descriptorType;
 		std::shared_ptr<Device> device_ptr;
 	};
 
 	class DescriptorSetLayout {
 	public:
-		DescriptorSetLayout(std::shared_ptr<Device> device, DescriptorSetLayoutCreateInfo createInfo);
+		DescriptorSetLayout(std::shared_ptr<Device> device, const std::vector<DescriptorSetLayoutCreateInfo> &createInfo);
 		~DescriptorSetLayout();
 		DescriptorSetLayout(DescriptorSetLayout& other);
 		DescriptorSetLayout operator=(DescriptorSetLayout& other);

@@ -13,6 +13,7 @@
 #include <GraphicPipeline.hpp>
 #include <Framebuffer.hpp>
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/fwd.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -30,6 +31,7 @@ int main()
     std::shared_ptr<basicvk::Device> device = std::make_shared<basicvk::Device>(physicalDevice);
     basicvk::Queue graphicQueue = device->getGraphicQueue();
     basicvk::Queue presentQueue = device->getPresentQueue();
+    basicvk::CommandPool commandPool(device, graphicQueue);
 
     basicvk::SwapchainCreateInfo swapchainCreateInfo{};
     swapchainCreateInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -42,7 +44,7 @@ int main()
     /////STRUCT AND CONSTANT
 
     struct Vertex {
-        glm::vec2 pos;
+        glm::vec3 pos;
         glm::vec3 color;
         glm::vec2 texCoord;
     };
@@ -54,14 +56,20 @@ int main()
     };
 
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
     };
 
     const std::vector<uint16_t> indices = {
-        0, 1, 2, 2, 3, 0
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4
     };
 
     //BUFFER
@@ -90,7 +98,7 @@ int main()
     std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[0].offset = offsetof(Vertex, pos);
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
@@ -136,7 +144,6 @@ int main()
 
     //Prepare to render
 
-    basicvk::CommandPool commandPool(device, graphicQueue);
     std::vector<basicvk::Semaphore> imageAvailableSemaphores;
     std::vector<basicvk::Semaphore> renderFinishedSemaphores;
     std::vector<basicvk::Fence> inFlightFences;
@@ -193,14 +200,15 @@ int main()
     options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     basicvk::Texture texture(device, options);
 
-    auto commandBuffer = commandPool.allocateCommandBuffer();
-    commandBuffer->beginCommandBuffer({ VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT });
-    commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    commandBuffer->CopyBufferToTexture(imageBuffer, texture);
-    commandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    auto imageCommandBuffer = commandPool.allocateCommandBuffer();
+    
+    imageCommandBuffer->beginCommandBuffer({ VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT });
+    imageCommandBuffer->transitionImageLayout(texture.getVkImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    imageCommandBuffer->CopyBufferToTexture(imageBuffer, texture);
+    imageCommandBuffer->transitionImageLayout(texture.getVkImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    commandBuffer->endCommandBuffer();
-    commandBuffer->QueueSubmit({}, {}, nullptr);
+    imageCommandBuffer->endCommandBuffer();
+    imageCommandBuffer->QueueSubmit({}, {}, nullptr);
     graphicQueue.waitIdle();
 
 

@@ -8,7 +8,7 @@ namespace basicvk {
 		VkDescriptorPoolCreateInfo descriptorCreateInfo{};
 		descriptorCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		descriptorCreateInfo.maxSets = createInfo.maxSets;
-		descriptorCreateInfo.poolSizeCount = createInfo.poolSizes.size();
+		descriptorCreateInfo.poolSizeCount = static_cast<uint32_t>(createInfo.poolSizes.size());
 		descriptorCreateInfo.pPoolSizes = createInfo.poolSizes.data();
 
 		if (vkCreateDescriptorPool(device->getVkDevice(), &descriptorCreateInfo, VK_NULL_HANDLE, &this->descriptorPool) != VK_SUCCESS) {

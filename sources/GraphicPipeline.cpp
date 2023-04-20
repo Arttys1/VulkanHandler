@@ -1,9 +1,9 @@
 #include <GraphicPipeline.hpp>
 
 namespace basicvk {
-	GraphicPipeline::GraphicPipeline(std::shared_ptr<Device> device, const Swapchain &swapchain, const Shader &shader, GraphicPipelineInfo pipelineInfo)
+	GraphicPipeline::GraphicPipeline(std::shared_ptr<Device> device, const Swapchain& swapchain, const Shader& shader, GraphicPipelineInfo pipelineInfo)
 		: device_ptr(device), graphicPipeline(VK_NULL_HANDLE), pipelineLayout(VK_NULL_HANDLE)
-		, renderPass(VK_NULL_HANDLE)
+		, renderPass(VK_NULL_HANDLE), depthBuffer({})
 	{
 		VkDescriptorSetLayout vkDescriptorSetLayout = pipelineInfo.descriptorSetLayout ? pipelineInfo.descriptorSetLayout->getVkDescriptorSetLayout() : VK_NULL_HANDLE;
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
@@ -19,10 +19,10 @@ namespace basicvk {
 		VkSubpassDependency dependency{};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		dependency.srcAccessMask = 0;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 		VkAttachmentDescription colorAttachment{};
 		colorAttachment.format = swapchain.getVkSwapChainImageFormat();
@@ -38,15 +38,31 @@ namespace basicvk {
 		colorAttachmentRef.attachment = 0;
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+		VkAttachmentDescription depthAttachment{};
+		depthAttachment.format = device_ptr->getPhysicalDevice()->findDepthFormat();
+		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference depthAttachmentRef{};
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 		VkSubpassDescription subpass{};
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorAttachmentRef;
+		subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
+		std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
 		VkRenderPassCreateInfo renderPassCreateInfo{};
 		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCreateInfo.attachmentCount = 1;
-		renderPassCreateInfo.pAttachments = &colorAttachment;
+		renderPassCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+		renderPassCreateInfo.pAttachments = attachments.data();
 		renderPassCreateInfo.subpassCount = 1;
 		renderPassCreateInfo.pSubpasses = &subpass;
 		renderPassCreateInfo.dependencyCount = 1;
@@ -147,6 +163,18 @@ namespace basicvk {
 		colorBlending.blendConstants[2] = 0.0f; // Optional
 		colorBlending.blendConstants[3] = 0.0f; // Optional
 
+		VkPipelineDepthStencilStateCreateInfo depthStencil{};
+		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencil.depthTestEnable = VK_TRUE;
+		depthStencil.depthWriteEnable = VK_TRUE;
+		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+		depthStencil.depthBoundsTestEnable = VK_FALSE;
+		depthStencil.minDepthBounds = 0.0f; // Optional
+		depthStencil.maxDepthBounds = 1.0f; // Optional
+		depthStencil.stencilTestEnable = VK_FALSE;
+		depthStencil.front = {}; // Optional
+		depthStencil.back = {}; // Optional
+
 		auto ShaderStageCreateInfo = shader.getPipelineShaderStageCreateInfo();
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo{};
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -157,7 +185,7 @@ namespace basicvk {
 		pipelineCreateInfo.pViewportState = &viewportState;
 		pipelineCreateInfo.pRasterizationState = &rasterizer;
 		pipelineCreateInfo.pMultisampleState = &multisampling;
-		pipelineCreateInfo.pDepthStencilState = VK_NULL_HANDLE; // Optional
+		pipelineCreateInfo.pDepthStencilState = &depthStencil;
 		pipelineCreateInfo.pColorBlendState = &colorBlending;
 		pipelineCreateInfo.pDynamicState = &dynamicState;
 		pipelineCreateInfo.layout = pipelineLayout;
@@ -166,8 +194,61 @@ namespace basicvk {
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineCreateInfo.basePipelineIndex = -1;
 
-		if (vkCreateGraphicsPipelines(device->getVkDevice(), NULL, 1, &pipelineCreateInfo, VK_NULL_HANDLE, &graphicPipeline) != VK_SUCCESS) {
+		if (vkCreateGraphicsPipelines(device->getVkDevice(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, VK_NULL_HANDLE, &graphicPipeline) != VK_SUCCESS) {
 			throw std::runtime_error("unable to create graphic pipline");
+		}
+
+
+
+		///DEPTH BUFFER CREATION
+		VkExtent2D swapchainExtent = swapchain.getVkSwapChainExtent();
+		VkFormat depthFormat = device->getPhysicalDevice()->findDepthFormat();
+		VkImageCreateInfo imageInfo{};
+		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageInfo.extent.width = swapchainExtent.width;
+		imageInfo.extent.height = swapchainExtent.height;
+		imageInfo.extent.depth = 1;
+		imageInfo.mipLevels = 1;
+		imageInfo.arrayLayers = 1;
+		imageInfo.format = depthFormat;
+		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		if (vkCreateImage(device_ptr->getVkDevice(), &imageInfo, nullptr, &depthBuffer.depthImage) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create depth image!");
+		}
+
+		VkMemoryRequirements memRequirements;
+		vkGetImageMemoryRequirements(device_ptr->getVkDevice(), depthBuffer.depthImage, &memRequirements);
+
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = device_ptr->getPhysicalDevice()->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		if (vkAllocateMemory(device_ptr->getVkDevice(), &allocInfo, nullptr, &depthBuffer.depthImageMemory) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate depth image memory!");
+		}
+
+		vkBindImageMemory(device_ptr->getVkDevice(), depthBuffer.depthImage, depthBuffer.depthImageMemory, 0);
+
+		VkImageViewCreateInfo viewInfo{};
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.image = depthBuffer.depthImage;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewInfo.format = depthFormat;
+		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		viewInfo.subresourceRange.baseMipLevel = 0;
+		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.baseArrayLayer = 0;
+		viewInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(device_ptr->getVkDevice(), &viewInfo, VK_NULL_HANDLE, &depthBuffer.depthImageView) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create depth texture image view!");
 		}
 	}
 	GraphicPipeline::~GraphicPipeline()
@@ -184,14 +265,27 @@ namespace basicvk {
 			vkDestroyPipeline(device_ptr->getVkDevice(), graphicPipeline, VK_NULL_HANDLE);
 			graphicPipeline = VK_NULL_HANDLE;
 		}
+		if (depthBuffer.depthImage != VK_NULL_HANDLE) {
+			vkDestroyImage(device_ptr->getVkDevice(), depthBuffer.depthImage, VK_NULL_HANDLE);
+			depthBuffer.depthImage = VK_NULL_HANDLE;
+		}
+		if (depthBuffer.depthImageMemory != VK_NULL_HANDLE) {
+			vkFreeMemory(device_ptr->getVkDevice(), depthBuffer.depthImageMemory, VK_NULL_HANDLE);
+			depthBuffer.depthImageMemory = VK_NULL_HANDLE;
+		}
+		if (depthBuffer.depthImageView != VK_NULL_HANDLE) {
+			vkDestroyImageView(device_ptr->getVkDevice(), depthBuffer.depthImageView, VK_NULL_HANDLE);
+			depthBuffer.depthImageView = VK_NULL_HANDLE;
+		}
 	}
 	GraphicPipeline::GraphicPipeline(GraphicPipeline& other)
 		: device_ptr(other.device_ptr), graphicPipeline(other.graphicPipeline)
-		, pipelineLayout(other.pipelineLayout), renderPass(other.renderPass)
+		, pipelineLayout(other.pipelineLayout), renderPass(other.renderPass), depthBuffer(other.depthBuffer)
 	{
 		other.graphicPipeline = VK_NULL_HANDLE;
 		other.pipelineLayout = VK_NULL_HANDLE;
 		other.renderPass = VK_NULL_HANDLE;
+		other.depthBuffer = {};
 	}
 	GraphicPipeline GraphicPipeline::operator=(GraphicPipeline& other)
 	{
@@ -208,5 +302,10 @@ namespace basicvk {
 	VkPipelineLayout GraphicPipeline::getVkPipelineLayout() const
 	{
 		return pipelineLayout;
+	}
+
+	DepthBuffer basicvk::GraphicPipeline::getDepthBuffer() const
+	{
+		return depthBuffer;
 	}
 }

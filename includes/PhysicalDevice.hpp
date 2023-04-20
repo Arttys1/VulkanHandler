@@ -21,6 +21,8 @@ namespace basicvk {
 		QueueFamilyIndices getQueueFamillyIndices() const;
 		VkPhysicalDevice getVkPhysicalDevice() const;
 		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
+		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
+		VkFormat findDepthFormat() const;
 
 	private:
 		std::vector<VkPhysicalDevice> physicalDevices;

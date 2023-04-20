@@ -14,6 +14,12 @@ namespace basicvk {
 		DescriptorSetLayout *descriptorSetLayout;
 	};
 
+	struct DepthBuffer {
+		VkImage depthImage;
+		VkDeviceMemory depthImageMemory;
+		VkImageView depthImageView;
+	};
+
 	class GraphicPipeline {
 	public:
 		GraphicPipeline(std::shared_ptr<Device> device, const Swapchain& swapchain, const Shader &shader, GraphicPipelineInfo pipelineInfo);
@@ -26,12 +32,14 @@ namespace basicvk {
 		VkRenderPass getVkRenderPass() const;
 		VkPipeline getVkGraphicPipeline() const;
 		VkPipelineLayout getVkPipelineLayout() const;
+		DepthBuffer getDepthBuffer() const;
 
 	private:
 		std::shared_ptr<Device> device_ptr;
 		VkPipeline graphicPipeline;
 		VkPipelineLayout pipelineLayout;
 		VkRenderPass renderPass;
+		DepthBuffer depthBuffer;
 	};
 }
 

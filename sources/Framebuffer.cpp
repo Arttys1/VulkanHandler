@@ -7,17 +7,19 @@ namespace basicvk {
 		const std::vector<VkImageView>& swapChainImageViews = swapchain.getVkSwapchainImageViews();
 		VkExtent2D swapChainExtent = swapchain.getVkSwapChainExtent();
 		swapChainFramebuffers.resize(swapChainImageViews.size(), VK_NULL_HANDLE);
+		DepthBuffer depthBuffer = graphicPipeline.getDepthBuffer();
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-			VkImageView attachments[] = {
-				swapChainImageViews[i]
+			std::array<VkImageView, 2> attachments = {
+				swapChainImageViews[i],
+				depthBuffer.depthImageView,
 			};
 
 			VkFramebufferCreateInfo framebufferInfo{};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferInfo.renderPass = graphicPipeline.getVkRenderPass();
-			framebufferInfo.attachmentCount = 1;
-			framebufferInfo.pAttachments = attachments;
+			framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+			framebufferInfo.pAttachments = attachments.data();
 			framebufferInfo.width = swapChainExtent.width;
 			framebufferInfo.height = swapChainExtent.height;
 			framebufferInfo.layers = 1;

@@ -9,6 +9,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 #disable warning : enum unscoped because of vulkan write in c.
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise /wd\"26812\"")
 
+#disable warning : arithmetic overflow because of stb_image
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise /wd\"26451\"")
+
 file(GLOB_RECURSE SOURCES sources/*.cpp)
 file(GLOB_RECURSE HEADERS includes/*.hpp includes/*.h sources/*.h sources/*hpp)
 

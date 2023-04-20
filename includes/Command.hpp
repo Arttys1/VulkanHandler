@@ -31,7 +31,7 @@ namespace basicvk {
 
 		void CopyBuffer(const Buffer& src, const Buffer& dst) const;
 		void CopyBufferToTexture(const Buffer& src, const Texture& dest) const;
-		void transitionImageLayout(const Texture& texture, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) const;
+		void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) const;
 
 		void beginRenderPass(const GraphicPipeline& graphicPipeline, const Swapchain &swapchain, const Framebuffer& frameBuffer, uint32_t indexImage) const;
 		void endRenderPass() const;

@@ -196,21 +196,21 @@ int main()
     options.width = texWidth;
     options.format = VK_FORMAT_R8G8B8A8_SRGB;
     options.tiling = VK_IMAGE_TILING_OPTIMAL;
-    options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+    options.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    options.usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     options.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    options.useMimaping = true;
     basicvk::Texture texture(device, options);
 
     auto imageCommandBuffer = commandPool.allocateCommandBuffer();
     
     imageCommandBuffer->beginCommandBuffer({ VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT });
-    imageCommandBuffer->transitionImageLayout(texture.getVkImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    imageCommandBuffer->transitionImageLayout(texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     imageCommandBuffer->CopyBufferToTexture(imageBuffer, texture);
-    imageCommandBuffer->transitionImageLayout(texture.getVkImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
+    imageCommandBuffer->generateMipMap(texture);
     imageCommandBuffer->endCommandBuffer();
     imageCommandBuffer->QueueSubmit({}, {}, nullptr);
     graphicQueue.waitIdle();
-
 
     const std::vector<std::shared_ptr<basicvk::CommandBuffer>> &commandBuffers = commandPool.getCommandBuffers();
     const std::vector<std::shared_ptr<basicvk::DescriptorSet>> &descriptorSets = descriptorPool.getDescriptorSets();

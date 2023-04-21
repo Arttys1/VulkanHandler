@@ -37,9 +37,11 @@ namespace basicvk {
 		uint32_t width; 
 		uint32_t height;
 		VkFormat format;
+		VkImageLayout imageLayout;
 		VkImageTiling tiling;
 		VkImageUsageFlags usage;
 		VkMemoryPropertyFlags properties;
+		bool useMimaping;
 	};
 
 	class Texture {
@@ -57,14 +59,21 @@ namespace basicvk {
 		VkSampler getVkSampler() const;
 		uint32_t getWidth() const;
 		uint32_t getHeight() const;
+		uint32_t getMipLevels() const;
+		VkFormat getVkFormat() const;
+		VkImageLayout getVkImageLayout() const;
+		void setVkImageLayout(VkImageLayout imageLayout);
 
 	private:
 		VkImage image;
 		VkDeviceMemory imageMemory;
 		VkImageView imageView;
 		VkSampler sampler;
+		VkFormat format;
+		VkImageLayout imageLayout;
 		uint32_t width;
 		uint32_t height;
+		uint32_t mipLevels;
 		std::shared_ptr<Device> device_ptr;
 	};
 }

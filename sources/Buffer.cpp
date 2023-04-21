@@ -105,19 +105,24 @@ namespace basicvk {
 
 	Texture::Texture(std::shared_ptr<Device> devicePtr, TextureOptions options)
 		: image(VK_NULL_HANDLE), imageMemory(VK_NULL_HANDLE), imageView(VK_NULL_HANDLE), sampler(VK_NULL_HANDLE)
-		, width(options.width), height(options.height), device_ptr(devicePtr)
+		, format(options.format), imageLayout(options.imageLayout), width(options.width), height(options.height), device_ptr(devicePtr)
+		, mipLevels(1)
 	{
+		if (options.useMimaping) {
+			mipLevels = static_cast<uint32_t>(std::floor(std::log2( (width > height) ? width : height)));
+		}
+
 		VkImageCreateInfo imageInfo{};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageInfo.extent.width = width;
 		imageInfo.extent.height = height;
 		imageInfo.extent.depth = 1;
-		imageInfo.mipLevels = 1;
+		imageInfo.mipLevels = mipLevels;
 		imageInfo.arrayLayers = 1;
 		imageInfo.format = options.format;
 		imageInfo.tiling = options.tiling;
-		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageInfo.initialLayout = imageLayout;
 		imageInfo.usage = options.usage;
 		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -147,7 +152,7 @@ namespace basicvk {
 		viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		viewInfo.subresourceRange.baseMipLevel = 0;
-		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.levelCount = mipLevels;
 		viewInfo.subresourceRange.baseArrayLayer = 0;
 		viewInfo.subresourceRange.layerCount = 1;
 
@@ -173,7 +178,7 @@ namespace basicvk {
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerInfo.mipLodBias = 0.0f;
 		samplerInfo.minLod = 0.0f;
-		samplerInfo.maxLod = 0.0f;
+		samplerInfo.maxLod = static_cast<float>(mipLevels);
 
 		if (vkCreateSampler(device_ptr->getVkDevice(), &samplerInfo, VK_NULL_HANDLE, &sampler) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create texture sampler!");
@@ -200,7 +205,8 @@ namespace basicvk {
 	}
 	Texture::Texture(Texture& other)
 		: image(other.image), imageMemory(other.imageMemory), imageView(other.imageView), sampler(other.sampler)
-		, width(other.width), height(other.height), device_ptr(other.device_ptr)
+		, width(other.width), height(other.height), format(other.format), imageLayout(other.imageLayout)
+		, mipLevels(other.mipLevels), device_ptr(other.device_ptr)
 	{
 		other.image = VK_NULL_HANDLE;
 		other.imageMemory = VK_NULL_HANDLE;
@@ -215,7 +221,8 @@ namespace basicvk {
 	}
 	Texture::Texture(Texture&& other) noexcept
 		: image(other.image), imageMemory(other.imageMemory), imageView(other.imageView), sampler(other.sampler)
-		, width(other.width), height(other.height), device_ptr(other.device_ptr)
+		, width(other.width), height(other.height), format(other.format), imageLayout(other.imageLayout)
+		, mipLevels(other.mipLevels), device_ptr(other.device_ptr)
 	{
 		other.image = VK_NULL_HANDLE;
 		other.imageMemory = VK_NULL_HANDLE;
@@ -251,5 +258,21 @@ namespace basicvk {
 	uint32_t Texture::getHeight() const
 	{
 		return height;
+	}
+	uint32_t Texture::getMipLevels() const
+	{
+		return mipLevels;
+	}
+	VkFormat Texture::getVkFormat() const
+	{
+		return format;
+	}
+	VkImageLayout Texture::getVkImageLayout() const
+	{
+		return imageLayout;
+	}
+	void Texture::setVkImageLayout(VkImageLayout imageLayout)
+	{
+		this->imageLayout = imageLayout;
 	}
 }

@@ -256,6 +256,30 @@ int main()
         swapchain.acquireNextImage(&imageIndex, &imageAvailableSemaphore, nullptr, UINT64_MAX);
 
         commandBuffer->resetCommandBuffer();
+
+        {
+            UniformBufferObject ubo{};
+            ubo.model = glm::rotate(glm::mat4(1.0f), (float)window.getTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+            ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+            ubo.proj[1][1] *= -1;
+
+            uniformBuffers[currentFrame].mapMemory((void*)&ubo, sizeof(ubo));
+
+            basicvk::BufferUpdateInfo bufferUpdateInfo{};
+            bufferUpdateInfo.arrayElement = 0;
+            bufferUpdateInfo.binding = 0;
+            bufferUpdateInfo.buffer = uniformBuffers[currentFrame].getVkBuffer();
+            bufferUpdateInfo.range = sizeof(UniformBufferObject);
+            bufferUpdateInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+            basicvk::DescriptorSetUpdateInfo descriptorSetUpdateInfo{};
+            descriptorSetUpdateInfo.bufferInfos = { bufferUpdateInfo };
+            descriptorSetUpdateInfo.textureInfos = { };
+
+            descriptorSets[currentFrame]->UpdateDescriptorSet(descriptorSetUpdateInfo);
+        }
+        
         basicvk::CommandBufferUsage usage{};
         usage.usage = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         commandBuffer->beginCommandBuffer(usage);

@@ -62,4 +62,8 @@ namespace basicvk {
 		assert(height != nullptr);
 		glfwGetFramebufferSize(window, width, height);
 	}
+	double Window::getTime() const
+	{
+		return glfwGetTime();
+	}
 }

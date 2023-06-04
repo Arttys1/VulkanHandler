@@ -24,6 +24,7 @@ namespace basicvk {
 		const GLFWwindow* getGLFWwindow() const;
 		VkSurfaceKHR getVkSurface() const;
 		void getFramebufferSize(int* width, int* height) const;
+		double getTime() const;
 
 	private:
 		GLFWwindow* window;
